@@ -3,16 +3,16 @@
 PCA9685::PCA9685(uint8_t addr) : _addr(addr) {}
 
 bool PCA9685::begin() {
-    Serial.println("\n--- PCA9685 初始化 ---");
-    Serial.printf("地址: 0x%02X\n", _addr);
+    Serial.printf("\n--- PCA9685 初始化 ---\n地址: 0x%02X\n", _addr);
     
     if (!I2CBus::getInstance().deviceExists(_addr)) {
         Serial.printf("错误: 未找到 PCA9685 (0x%02X)\n", _addr);
         return false;
     }
     
-    reset();
-    setPWMFreq(50); // 默认50Hz，适合舵机
+    writeReg(PCA9685_MODE1, PCA9685_MODE1_RESTART);
+    delay(10);
+    setPWMFreq(50);
     _initialized = true;
     
     Serial.println("PCA9685 初始化完成");
@@ -91,11 +91,12 @@ void PCA9685::setAllPWM(uint16_t on, uint16_t off) {
 
 void PCA9685::setServo(uint8_t channel, uint16_t angle, uint16_t minPulse, uint16_t maxPulse) {
     if (channel > 15) return;
-    
+
     angle = constrain(angle, 0, 180);
-    
-    // 将角度映射到PWM值
+
+    // 将角度映射到PWM值 (50Hz下 0.5ms=102, 2.5ms=512)
     uint16_t pulse = map(angle, 0, 180, minPulse, maxPulse);
+    Serial.printf("  [DBG] 通道%d 角度%d -> PWM脉冲=%d (范围%d-%d)\n", channel, angle, pulse, minPulse, maxPulse);
     setPWM(channel, 0, pulse);
 }
 

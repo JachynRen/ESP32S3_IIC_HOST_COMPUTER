@@ -25,12 +25,10 @@ void setup() {
 
 void loop() {
     static char cmdBuffer[CMD_BUF_SIZE];
-    
+
     // 处理串口输入
     if (SerialConsole::getInstance().readCommand(cmdBuffer, CMD_BUF_SIZE)) {
         CommandProcessor::getInstance().process(cmdBuffer);
         SerialConsole::getInstance().printPrompt();
     }
-
-    delay(10);
 }

@@ -65,15 +65,6 @@ void CommandProcessor::process(const char* cmd) {
             Serial.println("用法: i2c dump <addr> <reg> <count>");
         }
 
-    } else if (strncmp(cmd, "lcd", 3) == 0 && strncmp(cmd, "lcd ", 4) == 0) {
-        int row, col;
-        char text[64];
-        if (sscanf(cmd, "%*s %d %d %63[^\n]", &row, &col, text) == 3) {
-            LCD1602::getInstance().writeText(row, col, text);
-        } else {
-            Serial.println("用法: lcd <row 0-1> <col 0-15> <text>");
-        }
-
     } else if (strncmp(cmd, "lcd clear", 9) == 0 || strncmp(cmd, "lcd cls", 7) == 0) {
         LCD1602::getInstance().clear();
         Serial.println("LCD 已清空");
@@ -88,15 +79,22 @@ void CommandProcessor::process(const char* cmd) {
 
     } else if (strncmp(cmd, "lcd anim", 8) == 0) {
         Serial.println("播放宠物表情动画...");
-        const char* messages[] = {
-            "Happy!", "Sleepy... Zzz", "Surprised!", " LOVE! ", 
-            "Pet Dinner:", "Walking: Meow"
-        };
-        for (int i = 0; i < 6; i++) {
-            LCD1602::getInstance().showAnimation(i, messages[i]);
-            delay(2000);
-        }
+        LCD1602::getInstance().clear();
+        LCD1602::getInstance().setCursor(0, 0);
+        LCD1602::getInstance().print("\x00\x01\x02\x03\x04\x05\x06");
+        LCD1602::getInstance().setCursor(0, 1);
+        LCD1602::getInstance().print("Pet Animation");
+        delay(2000);
         LCD1602::getInstance().restoreDefault();
+
+    } else if (strncmp(cmd, "lcd ", 4) == 0) {
+        int row, col;
+        char text[64];
+        if (sscanf(cmd, "%*s %d %d %63[^\n]", &row, &col, text) == 3) {
+            LCD1602::getInstance().writeText(row, col, text);
+        } else {
+            Serial.println("用法: lcd <row 0-1> <col 0-15> <text>");
+        }
 
     } else if (strncmp(cmd, "pca scan", 8) == 0) {
         pca9685Scan();
@@ -296,20 +294,25 @@ void CommandProcessor::pca9685SetPWM(uint8_t addr, uint8_t channel, uint16_t on,
 void CommandProcessor::pca9685SetServo(uint8_t addr, uint8_t channel, uint16_t angle) {
     PCA9685* pca = getPCA9685(addr);
     if (!pca) {
-        Serial.printf("错误: PCA9685 @ 0x%02X 未初始化\n", addr);
-        return;
+        Serial.printf("PCA9685 @ 0x%02X 未初始化，自动初始化...\n", addr);
+        pca9685Init(addr);
+        pca = getPCA9685(addr);
+        if (!pca) {
+            Serial.printf("错误: PCA9685 @ 0x%02X 初始化失败\n", addr);
+            return;
+        }
     }
-    
+
     if (channel > 15) {
         Serial.println("错误: 通道号超出范围 (0-15)");
         return;
     }
-    
+
     if (angle > 180) {
         Serial.println("错误: 角度超出范围 (0-180)");
         return;
     }
-    
+
     pca->setServo(channel, angle);
     Serial.printf("PCA9685 @ 0x%02X 通道 %d 舵机角度: %d°\n", addr, channel, angle);
 }
