@@ -14,10 +14,18 @@ void I2CBus::scanDevices() {
     Serial.println("扫描 I2C 地址 (0x03 - 0x77):");
 
     for (uint8_t addr = 0x03; addr <= 0x77; addr++) {
-        Wire.beginTransmission(addr);
-        uint8_t error = Wire.endTransmission();
+        // 连续确认 2 次，减少误检测
+        bool found = true;
+        for (uint8_t retry = 0; retry < 2; retry++) {
+            Wire.beginTransmission(addr);
+            uint8_t error = Wire.endTransmission();
+            if (error != 0) {
+                found = false;
+                break;
+            }
+        }
 
-        if (error == 0) {
+        if (found) {
             Serial.printf("  找到设备: 0x%02X\n", addr);
             deviceCount++;
         }
