@@ -11,8 +11,10 @@ void CommandProcessor::process(const char* cmd) {
         printHelp();
 
     } else if (strncmp(cmd, "scan", 4) == 0) {
+        // 检查是否有完整扫描参数
+        bool fullScan = (strncmp(cmd, "scan full", 9) == 0);
         Serial.println("\n--- I2C 扫描 ---");
-        I2CBus::getInstance().scanDevices();
+        I2CBus::getInstance().scanDevices(!fullScan);
 
     } else if (strncmp(cmd, "i2c write", 9) == 0 || strncmp(cmd, "i2c w", 7) == 0) {
         uint8_t addr, reg, value;
@@ -63,37 +65,6 @@ void CommandProcessor::process(const char* cmd) {
             }
         } else {
             Serial.println("用法: i2c dump <addr> <reg> <count>");
-        }
-
-    } else if (strncmp(cmd, "lcd clear", 9) == 0 || strncmp(cmd, "lcd cls", 7) == 0) {
-        LCD1602::getInstance().clear();
-        Serial.println("LCD 已清空");
-
-    } else if (strncmp(cmd, "lcd bl on", 9) == 0) {
-        LCD1602::getInstance().backlight(true);
-        Serial.println("LCD 背光已开启");
-
-    } else if (strncmp(cmd, "lcd bl off", 10) == 0) {
-        LCD1602::getInstance().backlight(false);
-        Serial.println("LCD 背光已关闭");
-
-    } else if (strncmp(cmd, "lcd anim", 8) == 0) {
-        Serial.println("播放宠物表情动画...");
-        LCD1602::getInstance().clear();
-        LCD1602::getInstance().setCursor(0, 0);
-        LCD1602::getInstance().print("\x00\x01\x02\x03\x04\x05\x06");
-        LCD1602::getInstance().setCursor(0, 1);
-        LCD1602::getInstance().print("Pet Animation");
-        delay(2000);
-        LCD1602::getInstance().restoreDefault();
-
-    } else if (strncmp(cmd, "lcd ", 4) == 0) {
-        int row, col;
-        char text[64];
-        if (sscanf(cmd, "%*s %d %d %63[^\n]", &row, &col, text) == 3) {
-            LCD1602::getInstance().writeText(row, col, text);
-        } else {
-            Serial.println("用法: lcd <row 0-1> <col 0-15> <text>");
         }
 
     } else if (strncmp(cmd, "pca scan", 8) == 0) {
@@ -177,9 +148,6 @@ void CommandProcessor::process(const char* cmd) {
         Serial.printf("未知命令: %s\n", cmd);
         Serial.println("输入 help 查看可用命令");
     }
-
-    // I2C操作后恢复LCD
-    LCD1602::getInstance().restoreDefault();
 }
 
 void CommandProcessor::printHelp() {
@@ -189,7 +157,8 @@ void CommandProcessor::printHelp() {
     Serial.println();
     Serial.println("【系统】");
     Serial.println("  help              - 显示此帮助");
-    Serial.println("  scan              - 扫描 I2C 总线");
+    Serial.println("  scan              - 快速扫描 I2C 总线 (常见地址)");
+    Serial.println("  scan full         - 完整扫描 I2C 总线 (所有地址)");
     Serial.println();
     Serial.println("【I2C 读写】");
     Serial.println("  i2c w <addr> <reg> <value>");
@@ -198,13 +167,6 @@ void CommandProcessor::printHelp() {
     Serial.println("                    - 从 I2C 设备寄存器读取数据");
     Serial.println("  i2c dump <addr> <reg> <count>");
     Serial.println("                    - 转储 I2C 设备寄存器 (十六进制)");
-    Serial.println();
-    Serial.println("【LCD1602 控制】");
-    Serial.println("  lcd <row> <col> <text>");
-    Serial.println("                    - 在指定位置显示文字");
-    Serial.println("  lcd clear         - 清空屏幕");
-    Serial.println("  lcd bl on/off     - 背光开关");
-    Serial.println("  lcd anim          - 播放宠物表情动画");
     Serial.println();
     Serial.println("【PCA9685 控制】");
     Serial.println("  pca scan          - 扫描 PCA9685 设备");
@@ -223,7 +185,6 @@ void CommandProcessor::printHelp() {
     Serial.println();
     Serial.println("【示例】");
     Serial.println("  i2c w 0x27 0x00 0xFF    - 向 0x27 写寄存器 0x00 = 0xFF");
-    Serial.println("  lcd 0 0 Hello World     - 第 1 行显示 Hello World");
     Serial.println("  pca init 0x40           - 初始化 PCA9685");
     Serial.println("  pca servo 0x40 0 90     - 舵机0转到90度");
     Serial.println("  pca led 0x40 0 2048     - LED0设置为50%亮度");
@@ -243,14 +204,14 @@ void CommandProcessor::pca9685Scan() {
     Serial.println("\n--- PCA9685 扫描 ---");
     uint8_t commonAddrs[] = {0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47};
     bool found = false;
-    
+
     for (uint8_t addr : commonAddrs) {
         if (I2CBus::getInstance().deviceExists(addr)) {
             Serial.printf("  找到 PCA9685: 0x%02X\n", addr);
             found = true;
         }
     }
-    
+
     if (!found) {
         Serial.println("未找到 PCA9685 设备");
         Serial.println("提示: PCA9685 默认地址为 0x40-0x47");
@@ -313,7 +274,8 @@ void CommandProcessor::pca9685SetServo(uint8_t addr, uint8_t channel, uint16_t a
         return;
     }
 
-    pca->setServo(channel, angle);
+    // 舵机标准脉冲范围: 102-512 (对应0.5ms-2.5ms @ 50Hz)
+    pca->setServo(channel, angle, 102, 512);
     Serial.printf("PCA9685 @ 0x%02X 通道 %d 舵机角度: %d°\n", addr, channel, angle);
 }
 

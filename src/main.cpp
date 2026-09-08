@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include "core/i2c_bus.h"
 #include "core/serial_console.h"
-#include "drivers/lcd1602.h"
 #include "app/commands.h"
 
 void setup() {
@@ -12,10 +11,6 @@ void setup() {
     // 初始化 I2C 总线
     I2CBus::getInstance().begin();
     I2CBus::getInstance().scanDevices();
-
-    // 初始化 LCD1602 (独立 I2C 总线，不与 PCA9685 冲突)
-    // LCD: GPIO44/43, PCA9685: GPIO8/9
-    LCD1602::getInstance().begin(6, 7);
 
     // 打印就绪信息
     Serial.println("\n--- 就绪 ---");

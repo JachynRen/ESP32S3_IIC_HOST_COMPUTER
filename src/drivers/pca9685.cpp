@@ -37,20 +37,19 @@ uint8_t PCA9685::readReg(uint8_t reg) {
 }
 
 void PCA9685::setPWMFreq(float freq) {
-    // 计算预分频值
-    freq *= 0.9; // 补偿频率偏差
-    uint8_t prescale = (PCA9685_FREQ_OSC_INTERNAL / 4096.0 / freq) - 1;
-    
+    // 计算预分频值 (标准公式,25MHz内部振荡器)
+    uint8_t prescale = round(PCA9685_FREQ_OSC_INTERNAL / 4096.0 / freq) - 1;
+
     uint8_t oldmode = readReg(PCA9685_MODE1);
     uint8_t newmode = (oldmode & 0x7F) | PCA9685_MODE1_SLEEP;
-    
+
     writeReg(PCA9685_MODE1, newmode); // 进入睡眠模式
     writeReg(PCA9685_PRE_SCALE, prescale); // 设置预分频
     writeReg(PCA9685_MODE1, oldmode); // 恢复原模式
-    
+
     delay(5);
     writeReg(PCA9685_MODE1, oldmode | PCA9685_MODE1_RESTART); // 重启
-    
+
     Serial.printf("PCA9685 频率设置为: %.1f Hz (prescale=%d)\n", freq, prescale);
 }
 
@@ -94,10 +93,34 @@ void PCA9685::setServo(uint8_t channel, uint16_t angle, uint16_t minPulse, uint1
 
     angle = constrain(angle, 0, 180);
 
-    // 将角度映射到PWM值 (50Hz下 0.5ms=102, 2.5ms=512)
+    // 50Hz下,舵机脉冲范围:
+    // 0.5ms = 102 (0度)
+    // 2.5ms = 512 (180度)
+    // 默认使用 102-512 范围
     uint16_t pulse = map(angle, 0, 180, minPulse, maxPulse);
-    Serial.printf("  [DBG] 通道%d 角度%d -> PWM脉冲=%d (范围%d-%d)\n", channel, angle, pulse, minPulse, maxPulse);
-    setPWM(channel, 0, pulse);
+
+    // 验证PWM输出
+    uint8_t base = PCA9685_LED0_ON_L + 4 * channel;
+    uint8_t onL = 0 & 0xFF;
+    uint8_t onH = 0 >> 8;
+    uint8_t offL = pulse & 0xFF;
+    uint8_t offH = pulse >> 8;
+
+    writeReg(base, onL);
+    writeReg(base + 1, onH);
+    writeReg(base + 2, offL);
+    writeReg(base + 3, offH);
+
+    // 读取并验证写入的值
+    uint8_t verifyOffL = readReg(base + 2);
+    uint8_t verifyOffH = readReg(base + 3);
+    uint16_t verifyPulse = verifyOffL | (verifyOffH << 8);
+
+    bool success = (verifyPulse == pulse);
+
+    Serial.printf("  [DBG] 通道%d 角度%d -> PWM脉冲=%d (范围%d-%d) -> %s\n",
+                 channel, angle, pulse, minPulse, maxPulse,
+                 success ? "✓ 输出正常" : "✗ 写入失败");
 }
 
 void PCA9685::setLED(uint8_t channel, uint16_t brightness) {
@@ -131,7 +154,7 @@ void PCA9685::printStatus() {
         Serial.printf("MODE1: 0x%02X\n", mode1);
         Serial.printf("预分频: %d\n", prescale);
         
-        float freq = PCA9685_FREQ_OSC_INTERNAL / 4096.0 / (prescale + 1) / 0.9;
+        float freq = PCA9685_FREQ_OSC_INTERNAL / 4096.0 / (prescale + 1);
         Serial.printf("频率: %.1f Hz\n", freq);
         Serial.printf("睡眠模式: %s\n", (mode1 & PCA9685_MODE1_SLEEP) ? "是" : "否");
     }

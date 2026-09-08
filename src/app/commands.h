@@ -3,7 +3,6 @@
 
 #include <Arduino.h>
 #include "../drivers/pca9685.h"
-#include "../drivers/lcd1602.h"
 
 class CommandProcessor {
 public:

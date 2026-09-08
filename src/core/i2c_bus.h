@@ -25,7 +25,7 @@ public:
     }
 
     void begin();
-    void scanDevices();
+    void scanDevices(bool fast = true);
     
     bool writeRegister(uint8_t addr, uint8_t reg, uint8_t value);
     bool writeRegisters(uint8_t addr, uint8_t reg, const uint8_t* data, uint8_t len);
